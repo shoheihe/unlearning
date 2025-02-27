@@ -7,5 +7,14 @@
   * data <br>
   cifar10とcifar100のデータファイル
   * proposed <br>
-    * SCRUB-main
+    * SCRUB-main <br>
+      参考にしたアンラーニング手法SCRUBのscript
     * pro_SCRUB
+      * sh <br>
+        shell scriptファイル
+      * main.py　<br>
+        事前学習用ファイル
+      * unlearning.py <br>
+        unlearningを行うファイル
+
+# 実行方法
