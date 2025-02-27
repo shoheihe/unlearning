@@ -24,9 +24,25 @@ python main.py --dataset cifar10 --model preactresnet18 --noise_rate 0.5 --noise
 ~~~
 ### scrub
 ~~~py:unlearning.py
-python large_unlearning.py --dataset cifar100 --model preactresnet18 --noise_rate 0.5 --noise_mode sym --method scrub
+python unlearning.py --dataset cifar100 --model preactresnet18 --noise_rate 0.5 --noise_mode sym --method scrub
 ~~~
 ### 提案手法
 ~~~py:unlearning.py
-python large_unlearning.py --dataset cifar10 --model preactresnet18 --noise_rate 0.5 --noise_mode sym --method pro --delta 500 --zeta 20 --eta 5
+python unlearning.py --dataset cifar10 --model preactresnet18 --noise_rate 0.5 --noise_mode sym --method pro --delta 500 --zeta 20 --eta 5
 ~~~
+
+##### データセット
+* cifar10
+* cifar100
+
+##### モデル
+* preactresnet18
+* allcnn
+
+##### noise_mode
+* sym
+* asym
+* SDN (cifar100のみ)
+
+##### delta, zeta, eta
+損失項のハイパーパラメータ
