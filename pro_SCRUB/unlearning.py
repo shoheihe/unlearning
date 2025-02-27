@@ -40,6 +40,9 @@ warnings.filterwarnings("ignore", category=UserWarning)
 
 cls_non_avearge = nn.CrossEntropyLoss(reduction='none')
 
+def save_checkpoint(state, filename='checkpoint.pth.tar'):
+    torch.save(state, filename)
+
 #unlearning指標の算出
 def interclass_confusion(model, dataloader, class_to_forget, name):
     criterion = torch.nn.CrossEntropyLoss()
@@ -104,12 +107,14 @@ def parameter_count(model):
         count+=np.prod(np.array(list(p.shape)))
     print(f'Total Number of Parameters: {count}')
 
+#args.predに従った予測方法でサンプルを分類しloaderを作成
 def re_create_loader(args, loader):
+    #各サンプルがクリーン化ノイジー化を属性として持つloaderを作成
     eval_train_loader = loader.run('noise_pred', shuffle=False)
-    if args.pred == 'k-means':
-        # if 'resnet' in args.model:
-        #     feat_dim=512
-        # else: feat_dim=192
+    if args.pred == 'k-means' or args.pred =='dbscan':
+        if 'resnet' in args.model:
+            feat_dim=512
+        else: feat_dim=192
         encoders = []
         labels = []
         c_or_n_s = []
@@ -127,15 +132,17 @@ def re_create_loader(args, loader):
         # feature_vector = F.normalize(feature_vector, dim=1)
         sfeature_vector_tsne = TSNE(perplexity=50, n_components=2, learning_rate=350, random_state=args.seed).fit_transform(encoders)
         labels = np.array(labels)
-        # kmeans = KMeans(n_clusters=40, max_iter=30, init="random")
-        # cluster = kmeans.fit_predict(sfeature_vector_tsne)
-        db_scan = DBSCAN(eps=args.eps, min_samples=args.min_sample)
-        cluster = db_scan.fit_predict(encoders)
-        print(f'eps:{args.eps}\tmin_sample:{args.min_sample}\n')
+        if args.pred == 'k-means':
+            kmeans = KMeans(n_clusters=40, max_iter=30, init="random")
+            cluster = kmeans.fit_predict(sfeature_vector_tsne)
+        elif args.pred == 'dbscan':
+            db_scan = DBSCAN(eps=args.eps, min_samples=args.min_sample)
+            cluster = db_scan.fit_predict(encoders)
+            print(f'eps:{args.eps}\tmin_sample:{args.min_sample}\n')
         print(cluster)
         unipue_cluster = np.unique(cluster)
         print(len(set(cluster)))
-        exit()
+        # exit()
 
     else:
         
@@ -164,9 +171,6 @@ def re_create_loader(args, loader):
             #各サンプルがcleanである確率が格納されてる
             prob = prob[:, gmm.means_.argmin()]
             print(prob)
-            #クリーンサンプルのindexはFalse, ノイジーサンプルはTrue
-            # pred = (prob < args.gmm_threshhold)
-            #クリーンサンプルのindexはTrue, ノイジーサンプルはFalse こっちが正解やと思うけど上より精度悪い
             pred = (prob > args.gmm_threshhold)
 
         
@@ -205,6 +209,7 @@ def re_create_loader(args, loader):
     # fig.savefig(f"test_{args.noise_mode}{args.num_to_forget}.png", bbox_inches='tight', pad_inches=0.1)
 
     print(f'clean sample num:{len(pred.nonzero()[0])}')
+    #recall, precision等を算出
     cm = confusion_matrix(c_or_n_s, pred)
     report = classification_report(c_or_n_s, pred)
     print(cm)
@@ -217,10 +222,9 @@ def re_create_loader(args, loader):
     
 def scrub(args, e_1, e_2, centers=None):
     #pred noise
-    
-
     if args.pred != '':
         retain_loader, forget_loader = re_create_loader(args, loader)
+    #予測方法を指定していない場合はforgetにすべてのノイジーサンプルを分類された正しいものを用いる
     else:
         retain_loader, forget_loader = correct_retain_loader, correct_forget_loader
 
@@ -236,10 +240,11 @@ def scrub(args, e_1, e_2, centers=None):
     centers = mean(args, local_cluster_labels, local_encoder, retain_loader)
 
 
-
+    #学習の開始
     for epoch in range(1, e_2 + 1):
         lr = sgda_adjust_learning_rate(epoch, args, optimizer)
         print("==> SCRUB unlearning ...")
+        #事前学習済みデルルの精度計算
         acc_r, acc5_r, loss_r = validate(correct_retain_loader, model_s, criterion_cls, args, True)
         acc_f, acc5_f, loss_f = validate(correct_forget_loader, model_s, criterion_cls, args, True)
         acc_test, acc5_test, loss_test = validate(test_loader, model_s, criterion_cls, args, True)
@@ -251,11 +256,13 @@ def scrub(args, e_1, e_2, centers=None):
 
         maximize_loss = 0
         if epoch <= e_1:
+            #忘却
             maximize_loss = train_distill(epoch, forget_loader, module_list, None, criterion_list, optimizer, args, "maximize", centers=centers)
             acc_test, acc5_test, loss_test = validate(test_loader, model_s, criterion_cls, args, True)
             f.write(f'\n\t\t\tafter_forget_acc_test:{acc_test}\n')
-        if args.run =='!' and epoch > 15:
-            train_forget(args, epoch, forget_loader, module_list[0], optimizer, centers)
+        # if args.run =='!' and epoch > 15:
+        #     train_forget(args, epoch, forget_loader, module_list[0], optimizer, centers)
+        #クラス構造の強化
         train_acc, train_loss = train_distill(epoch, retain_loader, module_list, None, criterion_list, optimizer, args, "minimize", centers=centers)
 
         print ("maximize loss: {:.2f}\t minimize loss: {:.2f}\t train_acc: {}".format(maximize_loss, train_loss, train_acc))
@@ -263,33 +270,36 @@ def scrub(args, e_1, e_2, centers=None):
         
         if epoch==e_1 or epoch ==e_2:
             if args.save:
-                noise_name = args.noise_rate.replace('.', '_')
-                os.makedirs(f"../../result_weigh/{args.method}/{args.model}_{args.dataset}_{args.noise_mode}{args.noise_rate}/epoch_{epoch}.pt", exist_ok=True)
-                torch.save(model_s.state_dict(), f"../../result_weigh/{args.method}/{args.model}_{args.dataset}_{args.noise_mode}{args.noise_rate}/epoch_{epoch}.pt")
+                os.makedirs(f'{args.dir_name}/net/', exist_ok=True)
+                save_checkpoint({
+                    'epoch': epoch + 1,
+                    'arch': create_model,
+                    'state_dict': model.state_dict(),
+                    'optimizer' : optimizer.state_dict(),
+                    'seed':args.seed,
+                }, filename='{}weight_save_{}.tar'.format(args.dir_name, epoch))
             if args.tsne!=0:
                 feature_vector(args, model_s, eval_retain_loader, eval_forget_loader, epoch=epoch, data='forget', modes=mode, centers=centers)
         
 
 
 parser=argparse.ArgumentParser()
-parser.add_argument('--model', default='preactresnet')
+parser.add_argument('--model', default='preactresnet18')
 parser.add_argument('--filters', type=float, default=1.0,
                         help='Percentage of filters')
 parser.add_argument('--dataset', default='cifar10')
-parser.add_argument('--forget-class', type=str, default='all',
-                        help='Class to forget')
-parser.add_argument('--num-to-forget', type=int, default=None,
+parser.add_argument('--num_to_forget', type=int, default=None,
                         help='Number of samples of class to forget')
 parser.add_argument('--noise_rate', type=float, default=None)
 parser.add_argument('--seed', type=int, default=1, metavar='S',
                         help='random seed (default: 1)')
 parser.add_argument('--lr', type=float, default=0.01, metavar='LR',
                         help='learning rate (default: 0.01)')
-parser.add_argument('--batch-size', type=int, default=128, metavar='N',
+parser.add_argument('--batch_size', type=int, default=128, metavar='N',
                         help='input batch size for training (default: 128)')
 parser.add_argument('--lossfn', type=str, default='ce',
                         help='Cross Entropy: ce or mse')
-parser.add_argument('--weight-decay', type=float, default=0.0005, metavar='M',
+parser.add_argument('--weight_decay', type=float, default=0.0005, metavar='M',
                         help='Weight decay (default: 0.0005)')
 parser.add_argument('--no-cuda', action='store_true', default=False,
                         help='disables CUDA training')
@@ -302,27 +312,28 @@ parser.add_argument('--alpha', type=float, default=0, help='cross entropy in min
 parser.add_argument('--delta', type=float, default=0, help='cos_sim in minimize')
 parser.add_argument('--zeta', type=float, default=0, help='cos_sim in maximize')
 parser.add_argument('--eta', type=float, default=1, help='loss_div in maximize')
-parser.add_argument('--pre_train_epoch', type=int, default=200)
 
+parser.add_argument('--epochs', type=int, default=200, help='learning epoch of pre-train model')
 parser.add_argument('--noise_mode', type=str, default='asym', choices=['sym', 'asym', 'SDN'], help='asym or sym or SDN(Subclass Domain Noise)')
 parser.add_argument('--method', type=str, default='scrub')
 parser.add_argument('--e_n', nargs='+', type=int, default=[5])
 parser.add_argument('--e_r', nargs='*', type=int, default=[15])
 parser.add_argument('--tsne', type=int, default=0, help='0:none tsne, 1:after e_n and e_r tsne, 2:after e_n and e_r andb est model tsne')
 parser.add_argument('--save', type=bool, default=False, help='model_weight save')
-parser.add_argument('--gpu', default=0, type=int)
-parser.add_argument('--forget_bs', type=int, default=128)
+parser.add_argument('--gpu', default=0, type=int, help='use gpu-id')
+parser.add_argument('--forget_bs', type=int, default=512)
 parser.add_argument('--retain_bs', type=int, default=128)
-parser.add_argument('--kd_T', type=float, default=0.5)
+parser.add_argument('--kd_T', type=float, default=0.5, help='kd_loss parameter (loss * args.kd_T**)')
 parser.add_argument('--pred', type=str, default='', choices=['gmm', 'cls','k-means'], help='how to predict noise-sample')
 parser.add_argument('--cls_threshhold', type=float, default=10.)
 parser.add_argument('--gmm_threshhold', type=float, default=0.5)
-
-
+#parameter of t-SNE
 parser.add_argument('--tsne_lr', type=int, default=350)
 parser.add_argument('--tsne_per', type=int, default=30)
+#parameter of db-scan
 parser.add_argument('--eps', type=float, default=0.02)
 parser.add_argument('--min_sample', type=int, default=100)
+
 parser.add_argument('--file_name', type=str, default=None)
 args = parser.parse_args()
 
@@ -340,6 +351,7 @@ random.seed(args.seed)
 use_cuda = not args.no_cuda and torch.cuda.is_available()
 args.device = torch.device("cuda" if use_cuda else "cpu")
 
+#クラス数とデータパス，ノイズ率の設定
 if 'cifar5' in args.dataset:
 	args.num_classes=5
 elif args.dataset=='cifar100':
@@ -348,8 +360,6 @@ elif 'cifar10' in args.dataset:
 	args.num_classes=10
 args.forget_class=list(range(args.num_classes))
 args.dataroot='../../data/cifar100/cifar-100-python' if args.dataset=='cifar100' else '../../data/cifar10/cifar-10-batches-py'
-
-
 if args.num_to_forget!=None:
     args.noise_rate=float(args.num_to_forget/50000)
 elif args.noise_rate!=None:
@@ -357,20 +367,9 @@ elif args.noise_rate!=None:
 else:
     raise ValueError("both num_to_forget and noise_rate!")
 
-training_epochs=args.pre_train_epoch-1
-arch = args.model 
-dataset = args.dataset
 class_to_forget = args.forget_class
-forget_class_name=f'{np.min(class_to_forget)}_{np.max(class_to_forget)}'
 num_classes=args.num_classes
-num_to_forget = args.num_to_forget
 seed = args.seed
-learningrate=f"lr_{str(args.lr).replace('.','_')}"
-batch_size=f"_bs_{str(args.batch_size)}"
-lossfn=f"_ls_{args.lossfn}"
-wd=f"_wd_{str(args.weight_decay).replace('.','_')}"
-seed_name=f"_seed_{args.seed}_"
-noise_mode_name=f"noise_mode_{args.noise_mode}_"
 
 #モデルのLoad
 # if args.model=='allcnn':
@@ -388,7 +387,7 @@ def create_model():
     model = models.get_model(args.model, num_classes=num_classes)
     model = model.cuda()
     return model
-checkpoint = torch.load('../../weight/{}/net_seed{}/net/weight_save_{:04d}.tar'.format(file_name, args.seed, args.pre_train_epoch))
+checkpoint = torch.load('../../weight/{}/net_seed{}/net/weight_save_{:04d}.tar'.format(file_name, args.seed, args.epochs))
 model = create_model()
 optimizer = optim.SGD(model.parameters(), lr=0.1, momentum=0.9, weight_decay=5e-4)
 model.load_state_dict(checkpoint['state_dict'])
@@ -430,14 +429,16 @@ eval_forget_loader = loader.run('forget', shuffle=False)
 train_labels=[]
 for _,l,_ in train_loader:
     train_labels.extend(l.numpy())
+#各クラスのサンプル数の出力
 print(Counter(train_labels))
+#格納されてるサプル数数の出力
 print(f'forget sample num:{len(correct_forget_loader.dataset)}')
 print(f'retain sample num:{len(correct_retain_loader.dataset)}')
 print(f'test sanple num:{len(test_loader.dataset)}')
 if args.noise_mode=='SDN':
     args.num_classes = 20 
 
-#ハイパーパラメータ
+#scrubで設定されてたハイパーパラメータ
 args.optim = 'sgd'
 args.smoothing = 0.5
 args.clip = 0.5
@@ -463,8 +464,8 @@ fgt_ts=[]
 mode='encoder'
 
 #モデル・損失のリストの作成
-model_t = copy.deepcopy(model)
-model_s = copy.deepcopy(model)
+model_t = copy.deepcopy(model)  #teacher model
+model_s = copy.deepcopy(model)  #student model
 module_list = nn.ModuleList([])
 module_list.append(model_s)
 trainable_list = nn.ModuleList([])
@@ -499,11 +500,12 @@ if torch.cuda.is_available():
     import torch.backends.cudnn as cudnn
 
 
-#ファイルとディレクトリの作成
+#結果保存先filepathとディレクトリの作成
 from datetime import datetime
 import pytz
 noise_rate_name=str(args.noise_rate).replace('.', '_')
-dir_name='../../result/pred_{}/{}/{}/{}_{}/{}_seed_{}/{}/'.format(args.pred, args.method, args.dataset, , args.noise_mode, noise_rate_name, args.model, args.seed)
+dir_name='../../result/pred_{}/{}/{}/{}_{}/{}_seed_{}/'.\
+    format(args.pred, args.method, args.dataset, args.noise_mode, noise_rate_name, args.model, args.seed)
 os.makedirs(dir_name, exist_ok=True)
 args.dir_name=dir_name
 file_name=dir_name+'score.txt'
@@ -607,12 +609,10 @@ with open(file_name, 'a') as f:
     formatted_str = df.to_string(formatters=formatters)
     f.write(formatted_str)
 
-#configファイルの作成
+#configファイル(argsの保存ファイル)の作成
 args.device=str(args.device)
 with open("%s/config.json"%(dir_name), mode="w") as f:
     json.dump(args.__dict__, f, indent=4)
-
-
 
 #bestの可視化
 best_index=np.argmin(acc_tests[1:])

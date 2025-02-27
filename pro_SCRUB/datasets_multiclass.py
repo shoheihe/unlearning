@@ -8,10 +8,7 @@ import numpy as np
 import torch
 import torchvision
 import torchvision.transforms as transforms
-from lacuna import Lacuna10, Lacuna100, Small_Lacuna10, Small_Binary_Lacuna10, Small_Lacuna5,Small_Lacuna6
 from CIFAR import CIFAR100, CIFAR10, CIFAR5, Small_CIFAR10, Small_Binary_CIFAR10, Small_CIFAR5, Small_CIFAR6
-from Small_MNIST import Small_MNIST, Small_Binary_MNIST
-from TinyImageNet import TinyImageNet_pretrain, TinyImageNet_finetune, TinyImageNet_finetune5
 from IPython import embed
 
 def manual_seed(seed):

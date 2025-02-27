@@ -118,14 +118,7 @@ def feature_vector(args, model_net, retain_loader, forget_loader=None, num_class
     copy_data_loader=copy.deepcopy(retain_loader)
     if forget_loader is not None:
         copy_forget_loader=copy.deepcopy(forget_loader)
-    #dataloader=copy_forget_loader
-    '''for (input, targets, clean) in dataloader:
-        print(f'targetts:{targets}\nclean:{clean}')
-    print('&'*100)
-    dataloader=copy_forget_loader
-    for (input, targets, clean) in dataloader:
-        print(f'targetts:{targets}\nclean:{clean}')
-'''
+        
     os.environ['PYTHONHASEED']=str(args.seed)
     torch.backends.cudnn.deterministic = True
     # Faleseにしないと再現性が落ちる
@@ -140,14 +133,13 @@ def feature_vector(args, model_net, retain_loader, forget_loader=None, num_class
     mode_ls=[]
     mode_ls.append(modes)
     
+    #可視化するときの点のサイズ
     if 'small' in args.dataset:
         size=25
     elif 'cifar' in args.dataset:
         size=5
     else:
         raise ValueError("args.dataset None")
-    print(f'size:{size}')
-    
     if modes=='double':
         mode_ls=['encoder', 'output']
     
@@ -163,8 +155,8 @@ def feature_vector(args, model_net, retain_loader, forget_loader=None, num_class
     label = list(range(args.num_classes))
     
     clean_or_noise_label=['clean']
-    # if data!='test':
-    #     clean_or_noise_label=['clean', 'noise']
+
+    # clean_or_noise_label=['clean', 'noise']   #noisy-samples visualize color of noisy-label 
 
     for clean_or_noise in clean_or_noise_label:
         for mode in mode_ls:
@@ -188,7 +180,6 @@ def feature_vector(args, model_net, retain_loader, forget_loader=None, num_class
                 dicts['forget']=forget_dict
 
             markers_type = ['o','*']
-            #print(dicts.items())
             #計算と可視化
             feature_vector = []
             labels = []
@@ -270,17 +261,16 @@ def feature_vector(args, model_net, retain_loader, forget_loader=None, num_class
                 plt.legend(loc="upper left", fontsize=font_size)   
             plt.xticks([])
             plt.yticks([])
-            title_name='dataloader_{}_mode_{}_label_{}_epoch_{}'.format(data, mode, clean_or_noise, epoch)
+            title_name='{}_mode_{}_label_{}_{}epoch'.format(data, mode, clean_or_noise, epoch)
             plt.title(title_name)
             print('plot end')
             print(f'label_and_color:{label_color_dict}')
             print(title_name, epoch)
             if save_flg:
-                plot_path=args.dir_name
+                plot_path=args.dir_name+'/TSNE/'
 
                 os.makedirs(plot_path,exist_ok=True)
-                plot_name = os.path.join(plot_path,
-                    'T-SNE_'+title_name)
+                plot_name = os.path.join(plot_path, title_name)
                 fig = plt.gcf()
                 fig.savefig(f"{plot_name}.png", bbox_inches='tight', pad_inches=0.1)
                 pp = PdfPages(f"{plot_name}.pdf")

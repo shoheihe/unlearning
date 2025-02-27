@@ -72,52 +72,44 @@ def warmup_pro(epoch, net, optimizer, dataloader, args):
 #+++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--split', type=str, choices=['train', 'forget'])
-parser.add_argument('--batch-size', type=int, default=128, metavar='N',
+parser.add_argument('--batch_size', type=int, default=128, metavar='N',
                     help='input batch size for training (default: 128)')
-parser.add_argument('--augment', action='store_true', default=False,
-                    help='Use data augmentation')
 parser.add_argument('--dataset', default='mnist')
-parser.add_argument('--epochs', type=int, default=31, metavar='N',
-                    help='number of epochs to train (default: 31)')
+parser.add_argument('--epochs', type=int, default=200, metavar='N')
 parser.add_argument('--filters', type=float, default=1.0,
                     help='Percentage of filters')
 parser.add_argument('--lossfn', type=str, default='ce',
                     help='Cross Entropy: ce or mse')
 parser.add_argument('--lr', type=float, default=0.01, metavar='LR',
                     help='learning rate (default: 0.01)')
-parser.add_argument('--model', default='preactresnet')
+parser.add_argument('--model', default='preactresnet18')
 parser.add_argument('--momentum', type=float, default=0.9, metavar='M',
                     help='SGD momentum (default: 0.9)')
 parser.add_argument('--no-cuda', action='store_true', default=False,
                     help='disables CUDA training')
-parser.add_argument('--num-to-forget', type=int, default=None,
+parser.add_argument('--num_to_forget', type=int, default=None,
                     help='Number of samples of class to forget')
 parser.add_argument('--noise_rate', type=float, default=None)
-parser.add_argument('--confuse-mode', action='store_true', default=True,
-                    help="enables the interclass confusion test")
 parser.add_argument('--seed', type=int, default=1, metavar='S',
                     help='random seed (default: 1)')
-parser.add_argument('--step-size', default=None, type=int, help='learning rate scheduler')
-parser.add_argument('--weight-decay', type=float, default=0.0005, metavar='M',
+parser.add_argument('--step-size', default=100, type=int, help='learning rate scheduler')
+parser.add_argument('--weight_decay', type=float, default=0.0005, metavar='M',
                     help='Weight decay (default: 0.0005)')
 parser.add_argument('--noise_mode', type=str, default='asym', choices=['sym', 'asym', 'SDN'], help='asym or sym or SDN(Subclass Domain Noise)')
 parser.add_argument('--gpu', default=0, type=int)
-parser.add_argument('--save_', type = bool, default=False)
-parser.add_argument('--tsne_', type = bool, default=False)
+parser.add_argument('--save', type = bool, default=False)
+parser.add_argument('--tsne', type = bool, default=False)
 
 args = parser.parse_args()
-
+#ノイズ率，クラス数，データパスの定義
 if args.num_to_forget!=None:
     args.noise_rate=float(args.num_to_forget/50000)
 elif args.noise_rate!=None:
     args.num_to_forget=int(50000*args.noise_rate)
 else:
     raise ValueError("both num_to_forget and noise_rate!")
-
 if args.noise_mode=='SDN' and args.dataset!='cifar100':
     raise ValueError("SDN noise use only cifar100 dataset")
-
 args.dataroot=None
 if args.dataset == 'cifar100':
     args.dataroot = '../../data/cifar100/cifar-100-python'
@@ -137,7 +129,7 @@ noise_mode=args.noise_mode
 
 
 
-#seed系の固定s
+#seed系の固定
 manual_seed(args.seed)
 seed=args.seed
 os.environ['PYTHONHASEED']=str(args.seed)
@@ -190,8 +182,8 @@ parameters = model.parameters()
 optimizer = optim.SGD(parameters, lr=args.lr, momentum=0.9, weight_decay=5e-4)
 
 path_name=f'../../weight/'
-args.dir_name=f'{args.model}_{args.dataset}_{args.r}_{noise_mode}/net_seed{args.seed}/net'
-os.makedirs(path_name+args.dir_name, exist_ok=True)
+args.dir_name=f'{args.model}_{args.dataset}_{args.r}_{noise_mode}/net_seed{args.seed}/'
+os.makedirs(path_name+args.dir_name+'net/', exist_ok=True)
 # bestの保存変数
 best = 0
 # 学習のループ
@@ -217,7 +209,7 @@ for epoch in range(args.epochs+1):
             'state_dict': model.state_dict(),
             'optimizer' : optimizer.state_dict(),
             'seed':args.seed,
-        }, filename='{}{}/weight_save_{:04d}.tar'.format(path_name, args.dir_name, epoch))
+        }, filename='{}{}/net/weight_save_{:04d}.tar'.format(path_name, args.dir_name, epoch))
         print(f'save_weigh_last:{args.dir_name}')
     if acc > best:
         best = acc
@@ -227,13 +219,11 @@ for epoch in range(args.epochs+1):
                 'state_dict': model.state_dict(),
                 'optimizer' : optimizer.state_dict(),
                 'seed':args.seed,
-            }, filename='{}{}/weight_save_9999.tar'.format(path_name, args.dir_name))
+            }, filename='{}{}/net/weight_save_9999.tar'.format(path_name, args.dir_name))
     print(f'save_weigh_best\nepoch:{epoch}\tacc:{best}\n')
-#aaaaaa
+
 # pre-trainの特徴量可視化
 if args.tsne_:
-    args.dir_name=f'../../wight/{args.model}_{args.dataset}_{args.noise_rate}_{args.noise_mode}/net_seed{args.seed}/TSNE/'
-    os.makedirs(args.dir_name, exist_ok=True)
     centers=None
     with torch.no_grad():
         local_encoder = []
