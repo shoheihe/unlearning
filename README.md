@@ -43,6 +43,12 @@ python unlearning.py --dataset cifar10 --model preactresnet18 --noise_rate 0.5 -
 * sym
 * asym
 * SDN (cifar100のみ)
+[SDN(Subclass Dominant Noise)の論文](https://openreview.net/pdf?id=kR21XsZeAr)
+
+##### method
+* scrub
+  [SCRUBの論文(https://arxiv.org/pdf/2302.09880)]
+* pro
 
 ##### 損失項のハイパーパラメータ
 * delta
