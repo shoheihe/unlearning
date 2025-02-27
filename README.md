@@ -44,5 +44,10 @@ python unlearning.py --dataset cifar10 --model preactresnet18 --noise_rate 0.5 -
 * asym
 * SDN (cifar100のみ)
 
-##### delta, zeta, eta
-損失項のハイパーパラメータ
+##### 損失項のハイパーパラメータ
+* delta
+  重心に近づける項
+* zeta
+  離す方向を統一する項
+* eta
+  scrubの離す項
