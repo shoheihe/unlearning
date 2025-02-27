@@ -11,10 +11,22 @@
       参考にしたアンラーニング手法SCRUBのscript
     * pro_SCRUB
       * sh <br>
-        shell scriptファイル
+        shell scriptファイルがいくつか含まれてる
       * main.py　<br>
         事前学習用ファイル
       * unlearning.py <br>
         unlearningを行うファイル
 
 # 実行方法
+### 事前学習
+~~~py:main.py
+python main.py --dataset cifar10 --model preactresnet18 --noise_rate 0.5 --noise_mode sym --save True --tsne True
+~~~
+### scrub
+~~~py:unlearning.py
+python large_unlearning.py --dataset cifar100 --model preactresnet18 --noise_rate 0.5 --noise_mode sym --method scrub
+~~~
+### 提案手法
+~~~py:unlearning.py
+python large_unlearning.py --dataset cifar10 --model preactresnet18 --noise_rate 0.5 --noise_mode sym --method pro --delta 500 --zeta 20 --eta 5
+~~~
