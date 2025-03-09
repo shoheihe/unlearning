@@ -648,6 +648,14 @@ from torch.autograd import Variable
 #以上はSCRUBのコードに含まれていたもの、研究室では利用していない
 
 #以下にAllCNN，PreactResNet18のモデル構築コードが存在
+class Identity(nn.Module):
+    def __init__(self):
+        super(Identity, self).__init__()
+
+    def forward(self, x):
+        return x
+
+
 class Flatten(nn.Module):
     def __init__(self):
         super(Flatten, self).__init__()

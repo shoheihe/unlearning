@@ -223,7 +223,7 @@ for epoch in range(args.epochs+1):
     print(f'save_weigh_best\nepoch:{epoch}\tacc:{best}\n')
 
 # pre-trainの特徴量可視化
-if args.tsne_:
+if args.tsne:
     centers=None
     with torch.no_grad():
         local_encoder = []

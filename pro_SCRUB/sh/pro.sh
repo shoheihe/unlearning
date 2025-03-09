@@ -18,7 +18,8 @@ for r in "${rs[@]}";do
 
         python unlearning.py --dataset cifar10  --model $m --noise_rate $r --noise_mode asym --method pro --delta 500 --zeta 20 --eta 5
 
-        python unlearning.py --dataset cifar100 --model $m --noise_rate $r --noise_mode asym --method pro --forget_bs 1024 --delta 500 --zeta 20 --eta 5
-
     done
 done
+
+python unlearning.py --dataset cifar100  --model preactresnet18 --noise_rate 0.4 --noise_mode asym --method pro --delta 500 --zeta 20 --eta 5
+python unlearning.py --dataset cifar100  --model allcnn --noise_rate 0.4 --noise_mode asym --method pro --delta 500 --zeta 20 --eta 5
